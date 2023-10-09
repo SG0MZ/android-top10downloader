@@ -1,9 +1,15 @@
+@file:Suppress("DEPRECATION")
+
 package com.example.top10downloader
 
+import android.content.Context
 import android.os.AsyncTask
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.util.Log
+import android.widget.AbsListView
+import android.widget.ArrayAdapter
+import android.widget.ListView
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
@@ -12,6 +18,7 @@ import java.lang.StringBuilder
 import java.net.HttpURLConnection
 import java.net.MalformedURLException
 import java.net.URL
+import kotlin.properties.Delegates
 
 class FeedEntry {
     var name: String = ""
@@ -38,19 +45,32 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         Log.d(TAG,"onCreate called")
-        val downloadData = DownloadData()
+        val xmlListView: ListView = findViewById(R.id.xmlListView)
+        val downloadData = DownloadData(this, xmlListView)
         downloadData.execute("http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topfreeapplications/limit=10/xml")
         Log.d(TAG,"onCreate: done")
     }
 
     companion object {
-        private class DownloadData : AsyncTask<String, Void, String>() {
-            private val TAG = "Download"
+        private class DownloadData(context:Context, listView: ListView) : AsyncTask<String, Void, String>() {
+            private val TAG = "DownloadData"
+
+            var propContext : Context by Delegates.notNull()
+            var propListView : ListView by Delegates.notNull()
+
+            init {
+                propContext = context
+                propListView = listView
+            }
+
             override fun onPostExecute(result: String) {
                 super.onPostExecute(result)
 //                Log.d(TAG, "onPostExecute: parameter is $result")
                 val parseApplications = ParseApplication()
                 parseApplications.parse(result)
+
+                val arrayAdapter = ArrayAdapter<FeedEntry>(propContext, R.layout.list_item, parseApplications.applications)
+                propListView.adapter = arrayAdapter
             }
 
             override fun doInBackground(vararg url: String?): String {
