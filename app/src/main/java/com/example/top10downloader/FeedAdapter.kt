@@ -14,10 +14,15 @@ class ViewHolder(v: View) {
     val tvSummary: TextView = v.findViewById(R.id.tvSummary)
 }
 
-class FeedAdapter(context: Context, private val resource: Int, private val applications: List<FeedEntry>)
+class FeedAdapter(context: Context, private val resource: Int, private var applications: List<FeedEntry>)
     : ArrayAdapter<FeedEntry>(context, resource){
 
     private val inflater = LayoutInflater.from(context)
+
+    fun setFeedList(feedList: List<FeedEntry>) {
+        this.applications = feedList
+        notifyDataSetChanged()
+    }
 
     override fun getCount(): Int {
         return applications.size

@@ -12,6 +12,8 @@ import android.view.MenuItem
 import android.widget.AbsListView
 import android.widget.ArrayAdapter
 import android.widget.ListView
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
@@ -28,29 +30,18 @@ class FeedEntry {
     var releaseDate: String = ""
     var summary: String = ""
     var imageURL: String = ""
-
-    override fun toString(): String {
-        return """
-            name = $name
-            artist = $artist
-            releaseDate = $releaseDate
-            imageURL = $imageURL
-        """.trimIndent()
-    }
 }
 
+private const val TAG = "MainActivity"
+private const val STATE_URL = "feedUrl"
+private const val STATE_LIMIT = "feedLimit"
 class MainActivity : AppCompatActivity() {
-    private val TAG = "MainActivity"
 
     private val xmlListView: ListView = findViewById(R.id.xmlListView)
-    private var downloadData: DownloadData? = null
 
     private var feedUrl: String = "http://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topfreeapplications/limit=%d/xml"
     private var feedLimit = 10
-
-    private var feedCachedUrl = "INVALIDATED"
-    private val STATE_URL = "feedUrl"
-    private val STATE_LIMIT = "feedLimit"
+    private val feedViewModel: FeedViewModel by lazy { ViewModelProviders.of(this).get(FeedViewModel::class.java)}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,25 +49,25 @@ class MainActivity : AppCompatActivity() {
 
         Log.d(TAG,"onCreate called")
 
+        val feedAdapter = FeedAdapter(this,R.layout.list_record, EMPTY_FEED_LIST)
+        xmlListView.adapter = feedAdapter
+
         if (savedInstanceState != null) {
-            feedUrl = savedInstanceState.getString(STATE_URL).toString()
+            feedUrl = savedInstanceState.getString(STATE_URL)
             feedLimit = savedInstanceState.getInt(STATE_LIMIT)
         }
+
+        feedViewModel.feedEntries.observe(this,
+            Observer<List<FeedEntry>> {
+                feedEntries -> feedAdapter.setFeedList(feedEntries?: EMPTY_FEED_LIST)
+            })
+//        feedViewModel.feedEntries.observe(this,
+//            Observer<List<FeedEntry>> {
+//                    feedEntries -> feedAdapter.setFeedList(feedEntries!!)
+//            })
+
         downloadUrl(feedUrl.format(feedLimit))
         Log.d(TAG,"onCreate: done")
-    }
-
-    private fun downloadUrl(feedUrl: String) {
-        if (feedUrl != feedCachedUrl) {
-            Log.d(TAG,"downloadUrl starting AsyncTask")
-            downloadData = DownloadData(this,xmlListView)
-            downloadData?.execute(feedUrl)
-            feedCachedUrl = feedUrl
-            Log.d(TAG,"downloadUrl done")
-        } else {
-            Log.d(TAG,"downloadUrl - URL not changed")
-        }
-
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -108,11 +99,11 @@ class MainActivity : AppCompatActivity() {
                     Log.d(TAG,"onOptionsItemSelected: ${item.title} setting feedLimit unchanged")
                 }
             }
-            R.id.menuRefresh -> feedCachedUrl = "INVALIDATED"
+            R.id.menuRefresh -> feedViewModel.invalidate()
             else ->
                 return super.onOptionsItemSelected(item)
         }
-        downloadUrl(feedUrl.format(feedLimit))
+        feedViewModel.downloadUrl(feedUrl.format(feedLimit))
         return true
     }
 
@@ -120,45 +111,5 @@ class MainActivity : AppCompatActivity() {
         super.onSaveInstanceState(outState)
         outState.putString(STATE_URL,feedUrl)
         outState.putInt(STATE_LIMIT,feedLimit)
-    }
-    override fun onDestroy() {
-        super.onDestroy()
-        downloadData?.cancel(true)
-    }
-
-    companion object {
-        private class DownloadData(context:Context, listView: ListView) : AsyncTask<String, Void, String>() {
-            private val TAG = "DownloadData"
-
-            var propContext : Context by Delegates.notNull()
-            var propListView : ListView by Delegates.notNull()
-
-            init {
-                propContext = context
-                propListView = listView
-            }
-
-            override fun onPostExecute(result: String) {
-                super.onPostExecute(result)
-                val parseApplications = ParseApplication()
-                parseApplications.parse(result)
-
-                val feedAdapter = FeedAdapter(propContext, R.layout.list_record,parseApplications.applications)
-                propListView.adapter = feedAdapter
-            }
-
-            override fun doInBackground(vararg url: String?): String {
-                Log.d(TAG, "doInBackground: starts with ${url[0]}")
-                val rssFeed = downloadXML(url[0])
-                if (rssFeed.isEmpty()) {
-                    Log.e(TAG,"doInBackground: Error downloading")
-                }
-                return rssFeed
-            }
-
-            private fun downloadXML(urlPath: String?): String {
-                return URL(urlPath).readText()
-            }
-        }
     }
 }
